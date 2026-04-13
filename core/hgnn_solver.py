@@ -127,6 +127,7 @@ class HypergraphBuilder:
             [1, 2, 3],       # 2式 ↔ 消去ノード
             [3, 4, 5, 6],    # 消去後の解導出
             [0, 6],          # root ↔ answer 直接補強
+            [0, 4, 5, 6],    # root ↔ 解ノードx,y ↔ answer 経路強化
         ]
 
 
@@ -215,6 +216,9 @@ def train_hgnn(train_problems, n_epochs=200, lr=1e-3, seed=42, silent=False):
     random.seed(seed)
     solver = HGNNMathSolver()
     optimizer = torch.optim.Adam(solver.parameters(), lr=lr)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=n_epochs, eta_min=1e-5,
+    )
 
     solver.train()
     for epoch in range(1, n_epochs + 1):
@@ -229,6 +233,7 @@ def train_hgnn(train_problems, n_epochs=200, lr=1e-3, seed=42, silent=False):
             dep = dependency_loss(out, prob)
             (reg + 0.5 * con + 1.0 * dep).backward()
             optimizer.step()
+        scheduler.step()
         if not silent and epoch % 50 == 0:
             print(f"    epoch {epoch}/{n_epochs}")
 
@@ -304,7 +309,7 @@ def _gen_task_data(task, n, seed):
 #  比較実験
 # ─────────────────────────────────────────────
 
-def run_hgnn_comparison(n_samples=1000, n_epochs=200, lr=1e-3, seed=42):
+def run_hgnn_comparison(n_samples=2000, n_epochs=500, lr=1e-3, seed=42):
     tasks = {
         'linear': build_linear_equation(2, 3, 7),
         'quadratic': build_quadratic_equation(1, -5, 6),
