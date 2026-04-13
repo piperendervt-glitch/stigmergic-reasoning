@@ -15,6 +15,7 @@ _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)
 import time
 import random
 import math
+import json
 import logging
 from pathlib import Path
 from datetime import datetime
@@ -723,11 +724,77 @@ def run_axis4(n_samples=1000, n_epochs=300, seed=42):
 
 
 # ─────────────────────────────────────────────
+#  チェックポイント
+# ─────────────────────────────────────────────
+
+CHECKPOINT_PATH = "logs/checkpoint.json"
+
+
+def _save_checkpoint(checkpoint: dict, path: str = CHECKPOINT_PATH):
+    Path(path).parent.mkdir(exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(checkpoint, f, indent=2, ensure_ascii=False)
+    _os.replace(tmp, path)
+    logger.info(f"  Checkpoint saved: {path}")
+
+
+def _load_checkpoint(path: str = CHECKPOINT_PATH) -> dict:
+    p = Path(path)
+    if not p.exists():
+        return {}
+    with open(p, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _pack_axis(results: dict) -> dict:
+    """軸の結果を JSON シリアライズ可能な形式に変換する。"""
+    def _clean(v):
+        if isinstance(v, (np.floating, np.integer)):
+            v = v.item()
+        if isinstance(v, float) and math.isnan(v):
+            return None
+        return v
+
+    packed = {}
+    for k, v in results.items():
+        if isinstance(v, tuple):
+            packed[str(k)] = [_clean(x) for x in v]
+        elif isinstance(v, dict):
+            packed[str(k)] = {str(kk): _clean(vv) for kk, vv in v.items()}
+        else:
+            packed[str(k)] = _clean(v)
+    return packed
+
+
+def _unpack_axis(data: dict, int_keys: bool = False) -> dict:
+    """JSON から軸の結果を復元する。"""
+    def _restore(v):
+        return float('nan') if v is None else v
+
+    unpacked = {}
+    for k, v in data.items():
+        key = int(k) if int_keys else k
+        if isinstance(v, list):
+            unpacked[key] = tuple(_restore(x) for x in v)
+        elif isinstance(v, dict):
+            unpacked[key] = {kk: _restore(vv) for kk, vv in v.items()}
+        else:
+            unpacked[key] = _restore(v)
+    return unpacked
+
+
+# ─────────────────────────────────────────────
 #  メイン
 # ─────────────────────────────────────────────
 
 if __name__ == '__main__':
     setup_logger()
+
+    checkpoint = _load_checkpoint()
+    if checkpoint:
+        done = [k for k in ["axis1", "axis2", "axis3", "axis4"] if k in checkpoint]
+        logger.info(f"Checkpoint loaded: {done} completed, resuming...")
 
     logger.info("=" * 50)
     logger.info("HGNN bottleneck analysis start")
@@ -738,10 +805,37 @@ if __name__ == '__main__':
     N_EPOCHS = 300
     SEED = 42
 
-    r1 = run_axis1(N_SAMPLES, N_EPOCHS, SEED)
-    r2 = run_axis2(N_SAMPLES, N_EPOCHS, SEED)
-    r3 = run_axis3(N_SAMPLES, N_EPOCHS, SEED)
-    r4 = run_axis4(N_SAMPLES, N_EPOCHS, SEED)
+    if "axis1" in checkpoint:
+        r1 = _unpack_axis(checkpoint["axis1"])
+        logger.info("Axis1: loaded from checkpoint (skip)")
+    else:
+        r1 = run_axis1(N_SAMPLES, N_EPOCHS, SEED)
+        checkpoint["axis1"] = _pack_axis(r1)
+        _save_checkpoint(checkpoint)
+
+    if "axis2" in checkpoint:
+        r2 = _unpack_axis(checkpoint["axis2"], int_keys=True)
+        logger.info("Axis2: loaded from checkpoint (skip)")
+    else:
+        r2 = run_axis2(N_SAMPLES, N_EPOCHS, SEED)
+        checkpoint["axis2"] = _pack_axis(r2)
+        _save_checkpoint(checkpoint)
+
+    if "axis3" in checkpoint:
+        r3 = _unpack_axis(checkpoint["axis3"])
+        logger.info("Axis3: loaded from checkpoint (skip)")
+    else:
+        r3 = run_axis3(N_SAMPLES, N_EPOCHS, SEED)
+        checkpoint["axis3"] = _pack_axis(r3)
+        _save_checkpoint(checkpoint)
+
+    if "axis4" in checkpoint:
+        r4 = _unpack_axis(checkpoint["axis4"], int_keys=True)
+        logger.info("Axis4: loaded from checkpoint (skip)")
+    else:
+        r4 = run_axis4(N_SAMPLES, N_EPOCHS, SEED)
+        checkpoint["axis4"] = _pack_axis(r4)
+        _save_checkpoint(checkpoint)
 
     # 限界点まとめ
     logger.info("")
