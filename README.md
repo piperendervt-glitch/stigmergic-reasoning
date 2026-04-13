@@ -139,11 +139,14 @@ python -m pytest tests/ -v
 
 ### Anchor Score の変化
 
-| アーキテクチャ | Anchor Score | DepOK | RouteOK |
-|---|---|---|---|
-| LLM-like | 1.000 | 0% | 50% |
-| GNN v3 (Sparse+Gate) | 0.562 | 100% | 100% |
-| HGNN | 測定予定 | 100% | 100% |
+| アーキテクチャ | Anchor Score | DepOK | RouteOK | 判定 |
+|---|---|---|---|---|
+| LLM-like | 1.000 | 0% | 50% | 基準値 |
+| Baseline (Mean Agg) | 0.959 | - | - | |
+| GNN v3 (Sparse+Gate) | 0.969 | 100% | 100% | |
+| HGNN | 0.727 | 100% | 100% | 最良 |
+
+※ Anchor Score は低いほど良い（rootノードの情報残存量）
 
 ---
 
@@ -235,8 +238,11 @@ stigmergic-reasoning/
 
 ### 短期（実装済みアーキテクチャの改善）
 - [x] 連立方程式の回帰誤差改善（0.618 → 0.014 達成）
-- [ ] HGNN導入後のAnchor Score測定
-      （LLM-like 1.000 → GNN v3 0.562 → HGNN ??）
+- [x] HGNN導入後のAnchor Score測定
+      （LLM-like 1.000 → GNN v3 0.969 → HGNN 0.727）
+      パターンA確認: HGNN < GNN v3 < LLM-like
+      「弱い個体 + 連続値環境 + 超エッジ」の設計原則が
+      Anchor効果の構造的回避に有効であることを定量的に実証
 
 ### 中期（弱い個体の設計改善）
 - [ ] GNNノードの表現能力向上
