@@ -122,6 +122,65 @@ python -m pytest tests/ -v
 
 ---
 
+## 測定フレームワークへの注記
+
+### leaf_norm の解釈について
+
+`leaf_norm`（root ノードへの Jacobian ノルム）は
+当初 Over-squashing の指標として設計しましたが、
+実験を通じて以下の2つの異なる現象を
+区別できないことが判明しました。
+
+| leaf_norm=0 の原因 | 状況 | 意味 |
+|---|---|---|
+| ① 経路が存在しない | 超エッジ設計前 | Over-squashing（本来の意味） |
+| ② 近道を学習した | 超エッジD/E追加後 | Path Underutilization |
+
+**② Path Underutilization（経路の不使用）**
+
+超エッジによる直接接続（root → answer）を追加した結果、
+モデルが最短経路に収束し、長距離パスの Jacobian が消失する現象。
+Over-squashing とは異なり、経路は構造上存在しているが
+訓練後のモデルが実際にはその経路を使わない状態。
+
+CosineAnnealingLR などで最適化が進むほど
+この現象が顕著になる傾向があります。
+
+### 2つを区別するための追加指標
+
+```python
+# path_existence_check:
+#   超エッジ設計上、root から answer への経路が存在するか（構造的チェック）
+#   0: 経路なし（Over-squashing）
+#   1: 経路あり（Path Underutilization の可能性）
+
+# leaf_norm_untrained:
+#   訓練前（ランダム重み）での leaf_norm
+#   訓練前=0 → ① Over-squashing
+#   訓練前>0、訓練後=0 → ② Path Underutilization
+```
+
+### 回帰精度と leaf_norm のトレードオフ
+
+```
+回帰精度を上げる訓練の方向:
+  モデルが最短経路（超エッジD）に収束する
+  → 長距離パスの Jacobian が消えていく（leaf_norm → 0）
+
+Over-squashing 測定の要求:
+  モデルが長距離パスを使い続ける必要がある
+  → 近道の使用を抑制する必要がある
+
+この2つは最適化の方向が逆であり、
+同時に最大化することはできません。
+```
+
+現在の実装では回帰精度を優先しています。
+Over-squashing の構造的な解消（超エッジ設計）は達成済みであり、
+leaf_norm=0 は「モデルが近道を学習した」ことを示します。
+
+---
+
 ## ファイル構成
 
 ```
