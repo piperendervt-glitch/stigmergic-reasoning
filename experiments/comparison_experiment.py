@@ -506,6 +506,205 @@ def visualize_results(results: list[ExperimentResult], save_path: str = None):
         print(f"可視化をスキップ（{e}）")
 
 
+# ─────────────────────────────────────────────
+#  HGNN Anchor Score 測定
+# ─────────────────────────────────────────────
+
+def _problem_to_nx(problem) -> nx.Graph:
+    """MathProblemGraph の adj から networkx グラフを構築する。"""
+    adj_np = problem.adj.numpy()
+    G = nx.from_numpy_array(adj_np)
+    return G
+
+
+def measure_hgnn_anchor_score(n_samples=2000, n_epochs=500, seed=42):
+    """
+    HGNNMathSolver の Anchor Score を測定する。
+
+    測定条件:
+      - 問題タイプ: 一次・二次・連立の3タスク
+      - seed=42 固定
+      - compute_anchor_effect_score（v2: コサイン類似度ベース）を使用
+    """
+    import random
+    from solvers.math_problem_gnn import (
+        build_linear_equation, build_quadratic_equation,
+        build_simultaneous_equations, NODE_DIM,
+    )
+    from core.hgnn_solver import (
+        train_hgnn, _gen_task_data, get_hyperedges, HGNNMathSolver,
+    )
+
+    tasks = {
+        'linear': build_linear_equation(2, 3, 7),
+        'quadratic': build_quadratic_equation(1, -5, 6),
+        'simultaneous': build_simultaneous_equations(1, 1, 5, 1, -1, 1),
+    }
+
+    results = {}
+    for task_name, test_prob in tasks.items():
+        print(f"  HGNN [{task_name}] Training...", flush=True)
+        data = _gen_task_data(task_name, n_samples, seed)
+        split = int(len(data) * 0.8)
+        train_data = data[:split]
+        solver = train_hgnn(train_data, n_epochs, 1e-3, seed, silent=True)
+
+        # HGNN の出力（output_proj 後、node_dim 次元）
+        hyperedges = get_hyperedges(test_prob)
+        solver.eval()
+        with torch.no_grad():
+            out = solver.hgnn(test_prob.x, hyperedges)
+
+        G = _problem_to_nx(test_prob)
+        anchor = compute_anchor_effect_score(out, G, source_node=0)
+        mono = compute_signal_monotonicity(out, G, source_node=0)
+        results[task_name] = {'anchor': anchor, 'monotonicity': mono}
+
+    return results
+
+
+def run_full_anchor_comparison(n_samples=2000, n_epochs=500, seed=42):
+    """
+    LLM-like / Baseline / GNN v3 / HGNN の Anchor Score を
+    同一条件（数学問題グラフ）で比較する。
+    """
+    import random
+    from solvers.math_problem_gnn import (
+        build_linear_equation, build_quadratic_equation,
+        build_simultaneous_equations, NODE_DIM,
+    )
+    from core.hgnn_solver import (
+        train_hgnn, _gen_task_data, get_hyperedges, HGNNMathSolver,
+    )
+    from solvers.math_problem_gnn import MathSolverGNN
+
+    tasks = {
+        'linear': build_linear_equation(2, 3, 7),
+        'quadratic': build_quadratic_equation(1, -5, 6),
+        'simultaneous': build_simultaneous_equations(1, 1, 5, 1, -1, 1),
+    }
+
+    node_dim = NODE_DIM
+    num_layers = 4
+
+    # --- 非訓練モデル（ランダム重み、問題グラフ上で評価） ---
+    torch.manual_seed(seed)
+    llm_like = LLMLikeAnchor(node_dim, num_layers)
+    baseline = BaselineMessagePassing(node_dim, num_layers)
+    gnn_v3 = GNNStigmergyLayer(node_dim, hidden_dim=32, num_layers=num_layers)
+
+    llm_like.eval()
+    baseline.eval()
+    gnn_v3.eval()
+
+    model_results = {
+        'LLM-like Anchor': {},
+        'Baseline (Mean)': {},
+        'GNN v3 (Sparse+Gate)': {},
+        'HGNN': {},
+    }
+
+    # --- LLM-like / Baseline / GNN v3: 各タスクで測定 ---
+    for task_name, prob in tasks.items():
+        G = _problem_to_nx(prob)
+        with torch.no_grad():
+            out_llm = llm_like(prob.x, prob.adj)
+            out_base = baseline(prob.x, prob.adj)
+            out_gnn = gnn_v3(prob.x, prob.adj)
+
+        for model_name, out in [
+            ('LLM-like Anchor', out_llm),
+            ('Baseline (Mean)', out_base),
+            ('GNN v3 (Sparse+Gate)', out_gnn),
+        ]:
+            anchor = compute_anchor_effect_score(out, G, source_node=0)
+            mono = compute_signal_monotonicity(out, G, source_node=0)
+            model_results[model_name][task_name] = {
+                'anchor': anchor, 'monotonicity': mono,
+            }
+
+    # --- HGNN: タスク別に訓練して測定 ---
+    for task_name, test_prob in tasks.items():
+        print(f"  HGNN [{task_name}] Training...", flush=True)
+        data = _gen_task_data(task_name, n_samples, seed)
+        split = int(len(data) * 0.8)
+        train_data = data[:split]
+        solver = train_hgnn(train_data, n_epochs, 1e-3, seed, silent=True)
+
+        hyperedges = get_hyperedges(test_prob)
+        solver.eval()
+        with torch.no_grad():
+            out = solver.hgnn(test_prob.x, hyperedges)
+
+        G = _problem_to_nx(test_prob)
+        anchor = compute_anchor_effect_score(out, G, source_node=0)
+        mono = compute_signal_monotonicity(out, G, source_node=0)
+        model_results['HGNN'][task_name] = {
+            'anchor': anchor, 'monotonicity': mono,
+        }
+
+    # --- 結果表示 ---
+    print()
+    print("=" * 64)
+    print("  Anchor Score 全モデル比較")
+    print("=" * 64)
+    print(f"  {'モデル':<28} {'Anchor Score':>13} {'単調性':>8}")
+    print("  " + "-" * 52)
+
+    for model_name, task_dict in model_results.items():
+        anchors = [v['anchor'] for v in task_dict.values()]
+        monos = [v['monotonicity'] for v in task_dict.values()]
+        avg_a = np.mean(anchors)
+        avg_m = np.mean(monos)
+        print(f"  {model_name:<28} {avg_a:>13.3f} {avg_m:>8.3f}")
+
+    print("  " + "-" * 52)
+    print("  低いほど良い ↓")
+
+    # タスク別内訳
+    task_names = list(tasks.keys())
+    print()
+    print(f"  {'モデル':<28}", end="")
+    for t in task_names:
+        print(f" {t:>10}", end="")
+    print(f" {'平均':>8}")
+    print("  " + "-" * 64)
+
+    for model_name, task_dict in model_results.items():
+        print(f"  {model_name:<28}", end="")
+        vals = []
+        for t in task_names:
+            v = task_dict[t]['anchor']
+            vals.append(v)
+            print(f" {v:>10.3f}", end="")
+        print(f" {np.mean(vals):>8.3f}")
+
+    print("  " + "-" * 64)
+    print()
+
+    # --- パターン判定 ---
+    avg_hgnn = np.mean([v['anchor'] for v in model_results['HGNN'].values()])
+    avg_gnn = np.mean([v['anchor'] for v in model_results['GNN v3 (Sparse+Gate)'].values()])
+    avg_llm = np.mean([v['anchor'] for v in model_results['LLM-like Anchor'].values()])
+
+    print(f"  HGNN={avg_hgnn:.3f}  GNN v3={avg_gnn:.3f}  LLM-like={avg_llm:.3f}")
+
+    if avg_hgnn < avg_gnn - 0.05:
+        pattern = "A"
+        desc = "HGNN < GNN v3 < LLM-like → 超エッジがAnchor効果をさらに抑制"
+    elif abs(avg_hgnn - avg_gnn) <= 0.05:
+        pattern = "B"
+        desc = "GNN v3 ≈ HGNN → Over-squashing解消とAnchor抑制は独立した効果"
+    else:
+        pattern = "C"
+        desc = "GNN v3 < HGNN → 超エッジDの直接接続がAnchor効果を増加"
+
+    print(f"  パターン{pattern}: {desc}")
+    print()
+
+    return model_results
+
+
 if __name__ == '__main__':
     # 比較実験を実行
     results = run_comparison_experiment(
@@ -523,8 +722,3 @@ if __name__ == '__main__':
 
     print("=" * 70)
     print("比較実験が完了しました。")
-    print("次のステップ:")
-    print("  1. 数学問題（方程式）をグラフ化したテストを追加する")
-    print("  2. 実際のLLMエージェントとGNN環境層を統合する")
-    print("  3. Groupthink/Reflectionのバランス評価実験を追加する")
-    print("=" * 70)
