@@ -97,7 +97,7 @@ def build_three_variable_equations(
         x_ans = y_ans = z_ans = 0.0
     else:
         sol = np.linalg.solve(A, b_vec)
-        x_ans, y_ans, z_ans = sol
+        x_ans, y_ans, z_ans = float(sol[0]), float(sol[1]), float(sol[2])
 
     nodes = [
         make_node('problem_root', coeff_a=a1, coeff_b=b1,
@@ -116,7 +116,7 @@ def build_three_variable_equations(
 
     edges = [(0,1),(0,2),(0,3),(1,4),(2,4),(3,4),(4,5),(5,6),(5,7),(6,9),(7,9),(7,8),(8,9)]
     N = len(nodes)
-    adj = torch.zeros(N, N)
+    adj = torch.zeros(N, N, dtype=torch.float32)
     for s, d in edges:
         adj[s][d] = adj[d][s] = 1.0
 
@@ -138,7 +138,7 @@ def build_three_variable_equations(
     prob = MathProblemGraph(
         name="三元連立方程式",
         problem_str=f"{a1}x+{b1}y+{c1}z={d1} / {a2}x+{b2}y+{c2}z={d2} / {a3}x+{b3}y+{c3}z={d3}",
-        x=torch.stack(nodes), adj=adj,
+        x=torch.stack(nodes).float(), adj=adj,
         answer_node=9, answer_value=x_ans,
         node_labels=labels,
     )
@@ -169,7 +169,7 @@ def build_word_problem(multiplier: float, total: float) -> tuple[MathProblemGrap
 
     edges = [(0,1),(0,2),(1,3),(2,3),(3,4),(4,5)]
     N = len(nodes)
-    adj = torch.zeros(N, N)
+    adj = torch.zeros(N, N, dtype=torch.float32)
     for s, d in edges:
         adj[s][d] = adj[d][s] = 1.0
 
@@ -188,7 +188,7 @@ def build_word_problem(multiplier: float, total: float) -> tuple[MathProblemGrap
     prob = MathProblemGraph(
         name="文章題",
         problem_str=f"A={multiplier}B, A+B={total}",
-        x=torch.stack(nodes), adj=adj,
+        x=torch.stack(nodes).float(), adj=adj,
         answer_node=5, answer_value=a_ans,
         node_labels=labels,
     )
@@ -248,7 +248,7 @@ def build_extended_linear(a: float, b: float, c: float, n_nodes: int = 7):
         edges.append((prev, i))
         prev = i
 
-    adj = torch.zeros(N, N)
+    adj = torch.zeros(N, N, dtype=torch.float32)
     for s, d in edges:
         adj[s][d] = adj[d][s] = 1.0
 
@@ -264,7 +264,7 @@ def build_extended_linear(a: float, b: float, c: float, n_nodes: int = 7):
     prob = MathProblemGraph(
         name=f"一次方程式({N}ノード)",
         problem_str=f"{a}x + {b} = {c}",
-        x=torch.stack(nodes), adj=adj,
+        x=torch.stack(nodes).float(), adj=adj,
         answer_node=N - 1, answer_value=true_answer,
         node_labels=labels,
     )
@@ -300,7 +300,7 @@ def train_hgnn_custom(train_problems, hyperedges_fn, n_epochs=500, lr=1e-3, seed
             hyperedges = hyperedges_fn(prob)
             out = solver.hgnn(prob.x, hyperedges)
             pred = solver.decoder(out[prob.answer_node])
-            true_val = torch.tensor(prob.answer_value / SCALE)
+            true_val = torch.tensor(prob.answer_value / SCALE, dtype=torch.float32)
             reg = F.mse_loss(pred, true_val)
             con = path_contrastive_loss(out, prob)
             dep = dependency_loss(out, prob)

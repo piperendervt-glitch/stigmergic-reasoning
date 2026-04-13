@@ -77,7 +77,7 @@ def make_node(
     step_type: str = None,
 ) -> torch.Tensor:
     """ノード特徴量ベクトルを生成する。"""
-    vec = torch.zeros(NODE_DIM)
+    vec = torch.zeros(NODE_DIM, dtype=torch.float32)
     vec[NODE_TYPES[node_type]] = 1.0
     vec[4]  = coeff_a / SCALE
     vec[5]  = coeff_b / SCALE
@@ -157,7 +157,7 @@ def build_linear_equation(a: float, b: float, c: float) -> MathProblemGraph:
 
     edges = [(0,1),(0,2),(1,3),(2,3),(3,4),(4,5),(5,6)]
     N = len(nodes)
-    adj = torch.zeros(N, N)
+    adj = torch.zeros(N, N, dtype=torch.float32)
     for s, d in edges:
         adj[s][d] = adj[d][s] = 1.0
 
@@ -174,7 +174,7 @@ def build_linear_equation(a: float, b: float, c: float) -> MathProblemGraph:
     return MathProblemGraph(
         name=f"一次方程式: {a}x + {b} = {c}",
         problem_str=f"{a}x + {b} = {c}",
-        x=torch.stack(nodes),
+        x=torch.stack(nodes).float(),
         adj=adj,
         answer_node=6,
         answer_value=true_answer,
@@ -220,7 +220,7 @@ def build_quadratic_equation(a: float, b: float, c: float) -> MathProblemGraph:
 
     edges = [(0,1),(1,2),(1,3),(2,4),(3,4)]
     N = len(nodes)
-    adj = torch.zeros(N, N)
+    adj = torch.zeros(N, N, dtype=torch.float32)
     for s, d in edges:
         adj[s][d] = adj[d][s] = 1.0
 
@@ -235,7 +235,7 @@ def build_quadratic_equation(a: float, b: float, c: float) -> MathProblemGraph:
     return MathProblemGraph(
         name=f"二次方程式: {a}x² + {b}x + {c} = 0",
         problem_str=f"{a}x² + {b}x + {c} = 0",
-        x=torch.stack(nodes),
+        x=torch.stack(nodes).float(),
         adj=adj,
         answer_node=4,
         answer_value=x1,
@@ -288,7 +288,7 @@ def build_simultaneous_equations(
 
     edges = [(0,1),(0,2),(1,3),(2,3),(3,4),(3,5),(4,6),(5,6)]
     N = len(nodes)
-    adj = torch.zeros(N, N)
+    adj = torch.zeros(N, N, dtype=torch.float32)
     for s, d in edges:
         adj[s][d] = adj[d][s] = 1.0
 
@@ -305,7 +305,7 @@ def build_simultaneous_equations(
     return MathProblemGraph(
         name=f"連立方程式: {a1}x+{b1}y={c1}, {a2}x+{b2}y={c2}",
         problem_str=f"{a1}x + {b1}y = {c1}  /  {a2}x + {b2}y = {c2}",
-        x=torch.stack(nodes),
+        x=torch.stack(nodes).float(),
         adj=adj,
         answer_node=6,
         answer_value=x_ans,
