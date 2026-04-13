@@ -1,0 +1,16 @@
+.claude/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+*.pt
+*.pth
+*.png
+*.gif
+.pytest_cache/
+*.egg-info/
+dist/
+build/
