@@ -311,7 +311,7 @@ def train_hgnn_custom(train_problems, hyperedges_fn, n_epochs=500, lr=1e-3, seed
         scheduler.step()
         if task_name and epoch % log_interval == 0:
             avg_loss = epoch_loss / len(train_problems)
-            logger.info(f"  {task_name}: 訓練中 epoch {epoch}/{n_epochs} "
+            logger.info(f"  {task_name}: training epoch {epoch}/{n_epochs} "
                         f"loss={avg_loss:.4f}")
 
     solver.eval()
@@ -396,13 +396,13 @@ def gen_word_problem_data(n, seed=42):
 def run_axis1(n_samples=1000, n_epochs=300, seed=42):
     """軸1: 複雑な問題タイプの測定。"""
     logger.info("=" * 50)
-    logger.info("軸1開始: 複雑な問題タイプ")
+    logger.info("Axis1 start: complex problem types")
     logger.info("=" * 50)
 
     results = {}
     threshold = 0.1
 
-    # 既存タスク（参照値）
+    # existing tasks (reference)
     for task_name, test_prob in [
         ('linear', build_linear_equation(2, 3, 7)),
         ('quadratic', build_quadratic_equation(1, -5, 6)),
@@ -415,12 +415,12 @@ def run_axis1(n_samples=1000, n_epochs=300, seed=42):
         he = get_hyperedges(test_prob)
         err, leaf, os_s = measure_single(solver, test_prob, he, seed)
         results[task_name] = (err, leaf, os_s)
-        logger.info(f"  {task_name}: 完了 "
-                    f"誤差={err:.4f} leaf={leaf:.3e} OS={os_s}")
+        logger.info(f"  {task_name}: done "
+                    f"error={err:.4f} leaf={leaf:.3e} OS={os_s}")
         if err > threshold:
-            logger.info(f"  *** 限界検出: {task_name} 誤差>{threshold} ***")
+            logger.info(f"  *** LIMIT DETECTED: {task_name} error>{threshold} ***")
 
-    # 三元連立方程式
+    # three-variable simultaneous equations
     logger.info("  [three-variable] Training...")
     tv_data, tv_he = gen_three_var_data(n_samples, seed)
     split = int(len(tv_data) * 0.8)
@@ -436,12 +436,12 @@ def run_axis1(n_samples=1000, n_epochs=300, seed=42):
         1, 1, 1, 6,  2, -1, 1, 3,  1, 2, -1, 1)
     err, leaf, os_s = measure_single(solver_tv, test_tv, test_tv_he, seed)
     results['three-variable'] = (err, leaf, os_s)
-    logger.info(f"  three-variable: 完了 "
-                f"誤差={err:.4f} leaf={leaf:.3e} OS={os_s}")
+    logger.info(f"  three-variable: done "
+                f"error={err:.4f} leaf={leaf:.3e} OS={os_s}")
     if err > threshold:
-        logger.info(f"  *** 限界検出: three-variable 誤差>{threshold} ***")
+        logger.info(f"  *** LIMIT DETECTED: three-variable error>{threshold} ***")
 
-    # 文章題
+    # word problem
     logger.info("  [word-problem] Training...")
     wp_data, wp_he = gen_word_problem_data(n_samples, seed)
     split = int(len(wp_data) * 0.8)
@@ -456,14 +456,14 @@ def run_axis1(n_samples=1000, n_epochs=300, seed=42):
     test_wp, test_wp_he = build_word_problem(3.0, 20.0)
     err, leaf, os_s = measure_single(solver_wp, test_wp, test_wp_he, seed)
     results['word-problem'] = (err, leaf, os_s)
-    logger.info(f"  word-problem: 完了 "
-                f"誤差={err:.4f} leaf={leaf:.3e} OS={os_s}")
+    logger.info(f"  word-problem: done "
+                f"error={err:.4f} leaf={leaf:.3e} OS={os_s}")
     if err > threshold:
-        logger.info(f"  *** 限界検出: word-problem 誤差>{threshold} ***")
+        logger.info(f"  *** LIMIT DETECTED: word-problem error>{threshold} ***")
 
-    # 結果表示
+    # results
     logger.info("")
-    logger.info(f"  {'問題タイプ':<20} {'回帰誤差':>10} {'leaf_norm':>10} {'OS開始層':>8} {'判定':>6}")
+    logger.info(f"  {'problem_type':<20} {'error':>10} {'leaf_norm':>10} {'OS_start':>8} {'result':>6}")
     logger.info("  " + "-" * 58)
     for name, (err, leaf, os_s) in results.items():
         os_str = str(os_s) if os_s <= 8 else ">8"
@@ -471,7 +471,7 @@ def run_axis1(n_samples=1000, n_epochs=300, seed=42):
         verdict = "PASS" if ok else "FAIL"
         logger.info(f"  {name:<20} {err:>10.4f} {leaf:>10.4f} {os_str:>8} {verdict:>6}")
     logger.info("  " + "-" * 58)
-    logger.info("  判定: 回帰誤差 < 0.1")
+    logger.info("  criterion: error < 0.1")
 
     return results
 
@@ -483,7 +483,7 @@ def run_axis1(n_samples=1000, n_epochs=300, seed=42):
 def run_axis2(n_samples=1000, n_epochs=300, seed=42):
     """軸2: ノード数スケーラビリティ。"""
     logger.info("=" * 50)
-    logger.info("軸2開始: グラフ規模スケーラビリティ")
+    logger.info("Axis2 start: graph scale scalability")
     logger.info("=" * 50)
 
     node_counts = [7, 11, 15, 21]
@@ -494,7 +494,6 @@ def run_axis2(n_samples=1000, n_epochs=300, seed=42):
         task_name = f"N={n_nodes}"
         logger.info(f"  [{task_name}] Training...")
 
-        # 訓練データ生成
         rng = random.Random(seed)
         train_data = []
         he_map = {}
@@ -518,19 +517,19 @@ def run_axis2(n_samples=1000, n_epochs=300, seed=42):
         test_prob, test_he = build_extended_linear(2.0, 3.0, 7.0, n_nodes)
         err, leaf, os_s = measure_single(solver, test_prob, test_he, seed)
         results[n_nodes] = (err, leaf, os_s, train_time)
-        logger.info(f"  {task_name}: 完了 "
-                    f"誤差={err:.4f} leaf={leaf:.3e} OS={os_s}")
+        logger.info(f"  {task_name}: done "
+                    f"error={err:.4f} leaf={leaf:.3e} OS={os_s}")
         if err > threshold:
-            logger.info(f"  *** 限界検出: {task_name} 誤差>{threshold} ***")
+            logger.info(f"  *** LIMIT DETECTED: {task_name} error>{threshold} ***")
 
     logger.info("")
-    logger.info(f"  {'ノード数':>8} {'回帰誤差':>10} {'leaf_norm':>10} {'OS開始層':>8} {'訓練時間':>10}")
+    logger.info(f"  {'n_nodes':>8} {'error':>10} {'leaf_norm':>10} {'OS_start':>8} {'time':>10}")
     logger.info("  " + "-" * 50)
     for n, (err, leaf, os_s, t) in results.items():
         os_str = str(os_s) if os_s <= 8 else ">8"
         logger.info(f"  {n:>8} {err:>10.4f} {leaf:>10.4f} {os_str:>8} {t:>9.1f}s")
     logger.info("  " + "-" * 50)
-    logger.info("  限界: 回帰誤差 > 0.1 or OS < 4")
+    logger.info("  limit: error > 0.1 or OS < 4")
 
     return results
 
@@ -542,7 +541,7 @@ def run_axis2(n_samples=1000, n_epochs=300, seed=42):
 def run_axis3(n_samples=1000, n_epochs=300, seed=42):
     """軸3: OOD 汎化性能。"""
     logger.info("=" * 50)
-    logger.info("軸3開始: ノイズ耐性・汎化性能")
+    logger.info("Axis3 start: noise robustness / generalization")
     logger.info("=" * 50)
 
     test_ranges = [
@@ -572,7 +571,7 @@ def run_axis3(n_samples=1000, n_epochs=300, seed=42):
     n_test = 50
 
     for range_name, a_range, b_range, c_range in test_ranges:
-        logger.info(f"  OODテスト: {range_name}")
+        logger.info(f"  OOD test: {range_name}")
         row = {}
         for task_name in tasks:
             errors = []
@@ -618,7 +617,7 @@ def run_axis3(n_samples=1000, n_epochs=300, seed=42):
         results[range_name] = row
 
     logger.info("")
-    logger.info(f"  {'テスト範囲':<16} {'linear':>10} {'quadratic':>10} {'simultaneous':>12}")
+    logger.info(f"  {'test_range':<16} {'linear':>10} {'quadratic':>10} {'simultaneous':>12}")
     logger.info("  " + "-" * 52)
 
     in_dist = results.get('in-distribution', {})
@@ -636,11 +635,11 @@ def run_axis3(n_samples=1000, n_epochs=300, seed=42):
                 if base < 1e-8:
                     base = 0.001
                 if row.get(t, 0) > base * 3:
-                    logger.info(f"  *** 限界検出: {range_name}/{t} "
-                                f"誤差>{base * 3:.4f} ***")
+                    logger.info(f"  *** LIMIT DETECTED: {range_name}/{t} "
+                                f"error>{base * 3:.4f} ***")
 
     logger.info("  " + "-" * 52)
-    logger.info("  限界: in-distribution の 3倍を超える範囲")
+    logger.info("  limit: range exceeding 3x in-distribution")
 
     return results
 
@@ -652,7 +651,7 @@ def run_axis3(n_samples=1000, n_epochs=300, seed=42):
 def run_axis4(n_samples=1000, n_epochs=300, seed=42):
     """軸4: ノード数増加に対する Anchor Score の変化。"""
     logger.info("=" * 50)
-    logger.info("軸4開始: Anchor Score スケーラビリティ")
+    logger.info("Axis4 start: Anchor Score scalability")
     logger.info("=" * 50)
 
     node_counts = [7, 11, 15, 21]
@@ -682,7 +681,7 @@ def run_axis4(n_samples=1000, n_epochs=300, seed=42):
         test_prob, test_he = build_extended_linear(2.0, 3.0, 7.0, n_nodes)
         G = nx.from_numpy_array(test_prob.adj.numpy())
 
-        # leaf_norm (訓練前)
+        # leaf_norm (before training)
         torch.manual_seed(seed)
         model_pre = HGNNMathSolver()
         model_pre.eval()
@@ -691,11 +690,11 @@ def run_axis4(n_samples=1000, n_epochs=300, seed=42):
             return _m.hgnn(x, _he)[prob.answer_node]
         leaf_pre, _ = measure_leaf_jacobian(fwd_pre, test_prob)
 
-        # 訓練
+        # training
         solver = train_hgnn_custom(train_data[:split], he_fn, n_epochs, 1e-3, seed,
                                    task_name=task_name)
 
-        # leaf_norm (訓練後)
+        # leaf_norm (after training)
         def fwd_post(x, prob, _s=solver, _he=test_he):
             return _s.hgnn(x, _he)[prob.answer_node]
         leaf_post, _ = measure_leaf_jacobian(fwd_post, test_prob)
@@ -707,18 +706,18 @@ def run_axis4(n_samples=1000, n_epochs=300, seed=42):
         anchor = compute_anchor_effect_score(out, G, source_node=0)
 
         results[n_nodes] = (anchor, leaf_pre, leaf_post)
-        logger.info(f"  {task_name}: 完了 "
+        logger.info(f"  {task_name}: done "
                     f"Anchor={anchor:.3f} leaf_pre={leaf_pre:.3e} leaf_post={leaf_post:.3e}")
         if anchor > threshold:
-            logger.info(f"  *** 限界検出: {task_name} Anchor>{threshold} ***")
+            logger.info(f"  *** LIMIT DETECTED: {task_name} Anchor>{threshold} ***")
 
     logger.info("")
-    logger.info(f"  {'ノード数':>8} {'Anchor Score':>13} {'leaf(訓練前)':>12} {'leaf(訓練後)':>12}")
+    logger.info(f"  {'n_nodes':>8} {'Anchor Score':>13} {'leaf(pre)':>12} {'leaf(post)':>12}")
     logger.info("  " + "-" * 50)
     for n, (anc, lp, la) in results.items():
         logger.info(f"  {n:>8} {anc:>13.3f} {lp:>12.4f} {la:>12.4f}")
     logger.info("  " + "-" * 50)
-    logger.info("  限界: Anchor Score > 0.9")
+    logger.info("  limit: Anchor Score > 0.9")
 
     return results
 
@@ -731,7 +730,7 @@ if __name__ == '__main__':
     setup_logger()
 
     logger.info("=" * 50)
-    logger.info("HGNN 設計限界測定 開始")
+    logger.info("HGNN bottleneck analysis start")
     logger.info("=" * 50)
 
     # 軸の小規模設定（訓練量を抑えて実行時間を短縮）
@@ -747,16 +746,16 @@ if __name__ == '__main__':
     # 限界点まとめ
     logger.info("")
     logger.info("=" * 50)
-    logger.info("実験完了")
+    logger.info("All axes complete")
     logger.info("=" * 50)
 
     # 軸1
     fail1 = [k for k, (e, _, _) in r1.items() if e > 0.1]
-    logger.info(f"  軸1限界: {fail1 if fail1 else 'なし'}")
+    logger.info(f"  Axis1 limit: {fail1 if fail1 else 'none'}")
 
     # 軸2
     fail2 = [k for k, (e, _, os_s, _) in r2.items() if e > 0.1 or os_s < 4]
-    logger.info(f"  軸2限界: {fail2 if fail2 else 'なし'}")
+    logger.info(f"  Axis2 limit: {fail2 if fail2 else 'none'}")
 
     # 軸3
     in_d = r3.get('in-distribution', {})
@@ -770,12 +769,12 @@ if __name__ == '__main__':
                 base = 0.001
             if row.get(t, 0) > base * 3:
                 fail3.append(f"{rname}/{t}")
-    logger.info(f"  軸3限界: {fail3 if fail3 else 'なし'}")
+    logger.info(f"  Axis3 limit: {fail3 if fail3 else 'none'}")
 
     # 軸4
     fail4 = [k for k, (a, _, _) in r4.items() if a > 0.9]
-    logger.info(f"  軸4限界: {fail4 if fail4 else 'なし'}")
+    logger.info(f"  Axis4 limit: {fail4 if fail4 else 'none'}")
 
     logger.info("")
-    logger.info("測定完了")
+    logger.info("Analysis complete")
     logger.info("=" * 50)

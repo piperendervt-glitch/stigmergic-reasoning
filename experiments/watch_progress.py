@@ -35,7 +35,7 @@ def watch(log_path: str = "logs/experiment_progress.log",
         print(line)
 
     # 新しい行を監視
-    with open(path, encoding="utf-8") as f:
+    with open(path, encoding="utf-8-sig") as f:
         f.seek(0, 2)  # ファイル末尾にシーク
         print(f"\n--- リアルタイム監視中 (Ctrl+C で終了) ---\n")
         while True:
